@@ -5,16 +5,10 @@ mod handshake;
 mod message;
 mod session;
 
+use bytes::BytesMut;
 pub use handshake::Handshake;
 pub use session::Session;
-use bytes::BytesMut;
-
-/// Message flag
-pub const FLAG_VIDEO: u8 = 0;
-pub const FLAG_AUDIO: u8 = 1;
-pub const FLAG_FRAME: u8 = 2;
-pub const FLAG_PUBLISH: u8 = 3;
-pub const FLAG_UNPUBLISH: u8 = 4;
+use transport::{Flag, Payload};
 
 /// process result
 pub enum State {
@@ -26,5 +20,5 @@ pub enum State {
     /// Used to transfer handshake to session.
     Empty,
     /// Event message.
-    Event(BytesMut, u8),
+    Event(Payload, Flag),
 }

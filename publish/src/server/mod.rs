@@ -1,5 +1,5 @@
-pub mod socket;
 pub mod forward;
+pub mod socket;
 
 use crate::codec::Rtmp;
 use bytes::BytesMut;
@@ -12,10 +12,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
+use transport::Flag;
 
 /// Byte stream read and write pipeline type.
-pub type Tx = mpsc::UnboundedSender<(u8, BytesMut)>;
-pub type Rx = mpsc::UnboundedReceiver<(u8, BytesMut)>;
+pub type Tx = mpsc::UnboundedSender<(Flag, BytesMut)>;
+pub type Rx = mpsc::UnboundedReceiver<(Flag, BytesMut)>;
 
 /// Compound server address.
 pub struct ServerAddr {
@@ -25,7 +26,7 @@ pub struct ServerAddr {
 
 /// TCP Server.
 ///
-/// Create a TCP server, bind to the specified port 
+/// Create a TCP server, bind to the specified port
 /// address and process RTMP protocol messages.
 ///
 /// # Examples

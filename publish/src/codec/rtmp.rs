@@ -1,6 +1,7 @@
 use super::{Codec, Packet};
-use rtmp::{Handshake, Session, State};
 use bytes::BytesMut;
+use rtmp::{Handshake, Session, State};
+use transport::Transport;
 
 /// Rtmp protocol processing
 ///
@@ -64,18 +65,22 @@ impl Rtmp {
 
     /// The operation result returned by the processing module
     ///
-    /// The results include multimedia data, overflow data, 
+    /// The results include multimedia data, overflow data,
     /// callback data, and clear control information.
     fn process_state(&mut self, state: State, buffer: &mut BytesMut) -> Option<Packet> {
         match state {
             // callback data
             // Data to be sent to the peer TcpSocket.
             State::Callback(callback) => Some(Packet::Peer(callback)),
+
             // Event message.
-            State::Event(event, flag) => Some(Packet::Core(event, flag)),
+            State::Event(payload, flag) => {
+                let data = Transport::packet(payload);
+                Some(Packet::Core(data, flag))
+            }
 
             // overflow data
-            // Rewrite the buffer and pass the overflow data to the 
+            // Rewrite the buffer and pass the overflow data to the
             // next process to continue processing.
             State::Overflow(overflow) => {
                 *buffer = BytesMut::from(&overflow[..]);
@@ -83,7 +88,7 @@ impl Rtmp {
             }
 
             // Special needs
-            // Clear the buffer, no remaining data 
+            // Clear the buffer, no remaining data
             // needs to be processed.
             State::Empty => {
                 buffer.clear();
@@ -108,13 +113,13 @@ impl Codec for Rtmp {
 
         // The handshake is not yet complete,
         // Hand over to the handshake module to process Tcp data.
-        if self.handshake.completed == false {
+        if !self.handshake.completed {
             self.process_handshake(buffer, &mut receiver);
         }
 
         // The handshake is completed,
         // Process Rtmp messages.
-        if self.handshake.completed == true {
+        if self.handshake.completed {
             self.process_session(buffer, &mut receiver);
         }
 
