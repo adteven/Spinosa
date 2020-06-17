@@ -1,61 +1,47 @@
 mod socket;
 
-use super::router::{Router, Tx};
-use futures::prelude::*;
-use socket::Socket;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::{io::Error, pin::Pin};
+use crate::router::Router;
+use crate::router::{Rx, Tx};
+use std::{io::Error, sync::Arc};
 use tokio::net::TcpListener;
+use configure::ConfigureModel;
+use socket::Socket;
 
-/// TCP服务器
+/// 运行路由服务
 ///
-/// 处理所有连接到交换中心
-/// 的TcpSocket.
-pub struct Server {
-    listener: TcpListener,
-    sender: Tx,
+/// 路由中心提供频道数据的路由和转发.
+#[allow(warnings)]
+fn run_router(receiver: Rx) {
+    let mut router = Router::new(receiver);
+    tokio::spawn(async move {
+        loop { router.process().await;}
+        Ok::<(), Error>(())
+    });
 }
 
-impl Server {
-    /// 创建Tcp服务器实例
-    ///
-    /// 接受写入管道，用于和核心
-    /// 路由之间通信.
-    pub async fn new(addr: SocketAddr, sender: Tx) -> Result<Self, Error> {
-        Ok(Self {
-            sender,
-            listener: TcpListener::bind(addr).await?,
-        })
-    }
-}
-
-impl Stream for Server {
-    type Item = Result<(), Error>;
-
-    #[rustfmt::skip]
-    fn poll_next (self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
-        let handle = self.get_mut();
-        match handle.listener.poll_accept(ctx) {
-            Poll::Ready(Ok((socket, addr))) => {
-                let addr_str = Arc::new(addr.to_string());
-                let sender = handle.sender.clone();
-                tokio::spawn(Socket::new(socket, addr_str, sender));
-                Poll::Ready(Some(Ok(())))
-            }, _ => Poll::Pending
-        }
+/// 运行TCP服务器
+/// 
+/// 维护和处理TCP Socket链接与数据.
+#[allow(warnings)]
+async fn run_server(mut listener: TcpListener, sender: Tx) {
+    while let Ok((stream, addr)) = listener.accept().await {
+        let addr_str = Arc::new(addr.to_string());
+        let mut socket = Socket::new(stream, addr_str, sender.clone());
+        tokio::spawn(async move {
+            loop { socket.process().await?;}
+            Ok::<(), Error>(())
+        });
     }
 }
 
 /// 快速运行服务
 ///
 /// 提供简单方便的服务器启动入口.
-pub async fn run(addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
+#[rustfmt::skip]
+pub async fn run(configure: ConfigureModel) -> Result<(), Error> {
     let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-    let mut server = Server::new(addr, sender).await?;
-    tokio::spawn(Router::new(receiver));
-    loop {
-        server.next().await;
-    }
+    let listener = TcpListener::bind(configure.exchange.to_addr()).await?;
+    run_router(receiver);
+    run_server(listener, sender).await;
+    Ok(())
 }

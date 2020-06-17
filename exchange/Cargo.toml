@@ -1,12 +1,17 @@
 [package]
 name = "exchange"
 version = "0.1.0"
-authors = ["Mr.Panda <xivistudios@gmail.com>"]
+authors = [
+    "Mr.Panda <xivistudios@gmail.com>",
+    "huangjj27 <huangjj.27@qq.com>",
+]
 edition = "2018"
 
 [dependencies]
 bytes = "0.5.4"
-futures = "0.3"
+
+[dependencies.configure]
+path = "../lib/configure"
 
 [dependencies.transport]
 path = "../lib/transport"
